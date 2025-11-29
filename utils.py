@@ -16,7 +16,7 @@ def periodic_function(time_s, dominant_signal_parameters=None, noise_signal_para
             "phase_rad": 0.0,
         }
     if normal_noise_parameters is None:
-        random_normal_noise = {
+        normal_noise_parameters = {
             "mean": 0.0,
             "std": 0.15,
         }
