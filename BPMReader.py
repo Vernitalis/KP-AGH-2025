@@ -1,5 +1,6 @@
 import serial
 import time
+import numpy as np
 
 class BPMReader:
     def __init__(self, port, baudrate=9600, sampling_delay_ms = 20, max_data_length = 300):
@@ -37,6 +38,15 @@ class BPMReader:
         if len(self.time_s) > self.max_data_length:
             self.time_s.pop(0)
             self.ecg_data.pop(0)
+
+    def calculate_bpm(self):
+        if len(self.ecg_data) < (1000 / self.sampling_delay_ms if 1000 / self.sampling_delay_ms < self.max_data_length else self.max_data_length):
+            return None
+        ecg_data = np.array(self.ecg_data)
+        fft_magnitudes = np.abs(np.fft.rfft(ecg_data))
+        fft_frequencies_hz = np.fft.rfftfreq(len(ecg_data), d=self.sampling_delay_ms / 1000)
+        peak_frequency_hz = fft_frequencies_hz[np.argmax(fft_magnitudes[1:]) + 1]
+        return peak_frequency_hz * 60
 
     def set_signal_function(self, signal_function):
         if self.serial_device is not None:
