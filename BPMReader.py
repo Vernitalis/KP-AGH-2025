@@ -26,6 +26,7 @@ class BPMReader:
                 ecg_sample = None
         elif self.signal_function is not None:
             ecg_sample = self.signal_function(self.time_s[-1] if len(self.time_s) > 0 else self.sampling_delay_ms / 1000.)
+            time.sleep(self.sampling_delay_ms / 1000.)
         else:
             raise AttributeError("Can't read data sample if neither serial device nor signal function attribute is provided")
         if len(self.time_s) != 0:
@@ -41,3 +42,7 @@ class BPMReader:
         if self.serial_device is not None:
             raise AttributeError("Can't set signal function if serial device is already set")
         self.signal_function = signal_function
+
+    def close_serial_device(self):
+        if self.serial_device is not None:
+            self.serial_device.close()
