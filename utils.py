@@ -2,7 +2,7 @@ import math
 import random
 
 def periodic_function(time_s, dominant_signal_parameters=None, noise_signal_parameters=None,
-                      normal_noise_parameters=None, y_shift=370):
+                      normal_noise_parameters=None, y_shift=370) -> float:
     if dominant_signal_parameters is None:
         dominant_signal_parameters = {
             "amplitude": 50.0,

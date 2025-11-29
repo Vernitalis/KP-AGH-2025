@@ -13,12 +13,25 @@ class BPMReader:
             print("Use set_signal_function to provide simulated signal instead")
             self.serial_device = None
             self.signal_function = None
+
         self.sampling_delay_ms = sampling_delay_ms
         self.max_data_length = max_data_length
         self.time_s = []
         self.ecg_data = []
+        self.is_reading = False
 
-    def read_data_sample(self):
+    def send_arduino_command(self, command) -> None:
+        if self.serial_device is not None:
+            try:
+                self.serial_device.write(command.encode('utf-8'))
+                print(f"Sent command: {command}")
+            except Exception as e:
+                print(f"Error sending command: {e}")
+
+    def read_data_sample(self) -> None:
+        if not self.is_reading:
+            return
+
         if self.serial_device is not None:
             ecg_sample_str = self.serial_device.readline().decode('utf-8').strip()
             if ecg_sample_str != "":
@@ -39,7 +52,7 @@ class BPMReader:
             self.time_s.pop(0)
             self.ecg_data.pop(0)
 
-    def calculate_bpm(self):
+    def calculate_bpm(self) -> None|float:
         if len(self.ecg_data) < (1000 / self.sampling_delay_ms if 1000 / self.sampling_delay_ms < self.max_data_length else self.max_data_length):
             return None
         ecg_data = np.array(self.ecg_data)
@@ -48,11 +61,11 @@ class BPMReader:
         peak_frequency_hz = fft_frequencies_hz[np.argmax(fft_magnitudes[1:]) + 1]
         return peak_frequency_hz * 60
 
-    def set_signal_function(self, signal_function):
+    def set_signal_function(self, signal_function) -> None:
         if self.serial_device is not None:
             raise AttributeError("Can't set signal function if serial device is already set")
         self.signal_function = signal_function
 
-    def close_serial_device(self):
+    def close_serial_device(self) -> None:
         if self.serial_device is not None:
             self.serial_device.close()

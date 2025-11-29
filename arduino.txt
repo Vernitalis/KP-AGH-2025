@@ -1,0 +1,24 @@
+bool sendingData = false;
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(A0, INPUT);
+}
+
+void loop() {
+  if (Serial.available() > 0) {
+    char command = Serial.read();
+    if (command == '1') {
+      sendingData = true;
+    } else if (command == '0') {
+      sendingData = false;
+    }
+  }
+
+  if (sendingData) {
+    int sensorValue = analogRead(A0);
+    Serial.println(sensorValue);
+
+    delay(20);
+  }
+}
