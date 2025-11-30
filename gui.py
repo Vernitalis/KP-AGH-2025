@@ -18,7 +18,7 @@ class ECGInterface:
         self.setup_plot()
 
         self.anim = animation.FuncAnimation(
-            self.fig, self.update_plot, interval=20, cache_frame_data=False
+            self.fig, self.update_plot, interval=1000./30., cache_frame_data=False
         )
 
     def create_widgets(self) -> None:
@@ -57,7 +57,7 @@ class ECGInterface:
 
     def update_plot(self, frame) -> tuple[Line2D]:
         try:
-            self.bpm_reader.read_data_sample()
+            # self.bpm_reader.read_data_sample()
 
             if not self.bpm_reader.time_s:
                 return self.line_raw,
