@@ -14,10 +14,10 @@ class BPMReader:
             print(f"Error opening serial port: {e}")
             print("Use set_signal_function to provide simulated signal instead")
             self.serial_device = None
-            self.signal_function = None
-
+        self.signal_function = None
         self.sampling_delay_ms = sampling_delay_ms
         self.max_data_length = max_data_length
+        self.first_reading_time = None
         self.time_s = []
         self.ecg_data = []
         self.max_bpm_length = max_bpm_length
@@ -37,22 +37,22 @@ class BPMReader:
     def read_data_sample(self) -> None:
         if not self.is_reading:
             return
+        current_time = time.time()
+        if self.first_reading_time is None:
+            self.first_reading_time = current_time
 
         if self.serial_device is not None:
             ecg_sample_str = self.serial_device.readline().decode('utf-8').strip()
             if ecg_sample_str != "":
                 ecg_sample = float(ecg_sample_str)
             else:
-                ecg_sample = None
+                return
         elif self.signal_function is not None:
-            ecg_sample = self.signal_function(self.time_s[-1] if len(self.time_s) > 0 else self.sampling_delay_ms / 1000.)
+            ecg_sample = self.signal_function(current_time - self.first_reading_time)
             time.sleep(self.sampling_delay_ms / 1000.)
         else:
             raise AttributeError("Can't read data sample if neither serial device nor signal function attribute is provided")
-        if len(self.time_s) != 0:
-            self.time_s.append(self.time_s[-1] + self.sampling_delay_ms / 1000.)
-        else:
-            self.time_s.append(0.)
+        self.time_s.append(current_time - self.first_reading_time)
         self.ecg_data.append(ecg_sample)
         if len(self.time_s) > self.max_data_length:
             self.time_s.pop(0)
@@ -64,7 +64,7 @@ class BPMReader:
         if len(self.bpm_data) == 0 or self.time_s[-1] - self.last_bpm_calculation_s > self.bpm_reading_delay_s:
             ecg_data = np.array(self.ecg_data)
             fft_magnitudes = np.abs(np.fft.rfft(ecg_data))
-            fft_frequencies_hz = np.fft.rfftfreq(len(ecg_data), d=self.sampling_delay_ms / 1000)
+            fft_frequencies_hz = np.fft.rfftfreq(len(ecg_data), d=(self.time_s[-1] - self.time_s[0]) / len(self.time_s))
             peak_frequency_hz = fft_frequencies_hz[np.argmax(fft_magnitudes[1:]) + 1]
             self.bpm_data.append(peak_frequency_hz * 60)
             self.last_bpm_calculation_s = self.time_s[-1]
