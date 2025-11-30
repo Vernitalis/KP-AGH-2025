@@ -1,9 +1,11 @@
 import serial
 import time
 import numpy as np
+import statistics
 
 class BPMReader:
-    def __init__(self, port, baudrate=9600, sampling_delay_ms = 20, max_data_length = 300):
+    def __init__(self, port, baudrate=9600, sampling_delay_ms = 20, max_data_length = 300, max_bpm_length = 16,
+                 bpm_reading_delay_s = 0.25):
         try:
             self.serial_device = serial.Serial(port, baudrate, timeout=1)
             self.serial_device.flushInput()
@@ -18,6 +20,10 @@ class BPMReader:
         self.max_data_length = max_data_length
         self.time_s = []
         self.ecg_data = []
+        self.max_bpm_length = max_bpm_length
+        self.bpm_reading_delay_s = bpm_reading_delay_s
+        self.last_bpm_calculation_s = 0
+        self.bpm_data = []
         self.is_reading = False
 
     def send_arduino_command(self, command) -> None:
@@ -55,11 +61,16 @@ class BPMReader:
     def calculate_bpm(self) -> None|float:
         if len(self.ecg_data) < (1000 / self.sampling_delay_ms if 1000 / self.sampling_delay_ms < self.max_data_length else self.max_data_length):
             return None
-        ecg_data = np.array(self.ecg_data)
-        fft_magnitudes = np.abs(np.fft.rfft(ecg_data))
-        fft_frequencies_hz = np.fft.rfftfreq(len(ecg_data), d=self.sampling_delay_ms / 1000)
-        peak_frequency_hz = fft_frequencies_hz[np.argmax(fft_magnitudes[1:]) + 1]
-        return peak_frequency_hz * 60
+        if len(self.bpm_data) == 0 or self.time_s[-1] - self.last_bpm_calculation_s > self.bpm_reading_delay_s:
+            ecg_data = np.array(self.ecg_data)
+            fft_magnitudes = np.abs(np.fft.rfft(ecg_data))
+            fft_frequencies_hz = np.fft.rfftfreq(len(ecg_data), d=self.sampling_delay_ms / 1000)
+            peak_frequency_hz = fft_frequencies_hz[np.argmax(fft_magnitudes[1:]) + 1]
+            self.bpm_data.append(peak_frequency_hz * 60)
+            self.last_bpm_calculation_s = self.time_s[-1]
+        if len(self.bpm_data) > self.max_bpm_length:
+            self.bpm_data.pop(0)
+        return statistics.fmean(self.bpm_data)
 
     def set_signal_function(self, signal_function) -> None:
         if self.serial_device is not None:
