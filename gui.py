@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.animation as animation
 from matplotlib.lines import Line2D
+import numpy as np
 
 
 class ECGInterface:
@@ -33,13 +34,31 @@ class ECGInterface:
         self.toggle_btn.pack(side='right', padx=20)
 
     def setup_plot(self) -> None:
-        self.fig, self.ax = plt.subplots(figsize=(5, 4), dpi=100)
-        self.line_raw, = self.ax.plot([], [], 'g-', linewidth=1.5)
+        self.fig, self.axes = plt.subplots(nrows=2, figsize=(5, 4), dpi=100)
+        self.line_raw, = self.axes[0].plot([], [], 'g-', linewidth=1.5)
 
-        self.ax.set_title("Sygnał EKG (Arduino)")
-        self.ax.set_xlabel("Czas [s]")
-        self.ax.set_ylabel("Amplituda")
-        self.ax.grid(True, linestyle='--', alpha=0.5)
+        self.axes[0].set_title("Sygnał EKG (Arduino)")
+        self.axes[0].set_xlabel("Czas [s]")
+        self.axes[0].set_ylabel("Amplituda")
+        self.axes[0].grid(True, linestyle='--', alpha=0.5)
+
+        fft_length = self.bpm_reader.max_data_length * self.bpm_reader.data_proportion_for_bmp_calculation
+        fft_length = fft_length / 2 + 1 if fft_length % 2 == 0 else (fft_length + 1) / 2
+        fft_length -= 1
+        self.bpm_fft_amplitudes = np.zeros((int(fft_length), self.bpm_reader.bpm_fft_tuples_max_length))
+        self.spectrogram = self.axes[1].imshow(
+            self.bpm_fft_amplitudes,
+            cmap='viridis',
+            origin='lower',
+            aspect='auto',
+            interpolation='bicubic',
+        )
+        self.fig.colorbar(self.spectrogram, ax=self.axes[1])
+        self.axes[1].set_title("Spektrogram")
+        self.axes[1].set_xlabel("Czas [s]")
+        self.axes[1].set_ylabel("Częstotliwość")
+        self.axes[1].grid(True, linestyle='--', alpha=0.5)
+        self.axes[1].set_autoscale_on(False)
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.root)
         self.canvas.draw()
@@ -57,26 +76,36 @@ class ECGInterface:
 
     def update_plot(self, frame) -> tuple[Line2D]:
         try:
-            # self.bpm_reader.read_data_sample()
-
             if not self.bpm_reader.time_s:
                 return self.line_raw,
 
             self.line_raw.set_xdata(self.bpm_reader.time_s)
             self.line_raw.set_ydata(self.bpm_reader.ecg_data)
 
-            self.ax.set_xlim(self.bpm_reader.time_s[0], self.bpm_reader.time_s[-1] + 0.1)
+            self.axes[0].set_xlim(self.bpm_reader.time_s[0], self.bpm_reader.time_s[-1] + 0.1)
 
             y_data = self.bpm_reader.ecg_data
             if y_data:
                 ymin, ymax = min(y_data), max(y_data)
                 margin = (ymax - ymin) * 0.1 if ymax != ymin else 1.0
-                self.ax.set_ylim(ymin - margin, ymax + margin)
+                self.axes[0].set_ylim(ymin - margin, ymax + margin)
 
             bpm = self.bpm_reader.calculate_bpm()
             if bpm is not None:
                 self.bpm_label.configure(text=f"BPM: {int(bpm)}")
+
+                for i, bpm_fft_tuples in enumerate(self.bpm_reader.bpm_fft_tuples_tab):
+                    self.bpm_fft_amplitudes[:, i] = [fft_tuple[0] for fft_tuple in bpm_fft_tuples]
+                self.spectrogram.set_data(self.bpm_fft_amplitudes)
+                self.spectrogram.set_clim(vmin=self.bpm_fft_amplitudes.min(),
+                                          vmax=self.bpm_fft_amplitudes.max())
+                frequencies = [fft_tuple[1] for fft_tuple in self.bpm_reader.bpm_fft_tuples_tab[0]]
+                extent = [self.bpm_reader.time_s[0], self.bpm_reader.time_s[-1] + 0.1, frequencies[0], frequencies[-1]]
+                self.spectrogram.set_extent(extent)
+                self.axes[1].set_xlim(extent[0], extent[1])
+                self.axes[1].set_ylim(extent[2], extent[3])
+
         except Exception as e:
             print(f"Plot error: {e}")
-
-        return self.line_raw,
+            raise
+        return self.line_raw, self.spectrogram

@@ -6,13 +6,13 @@ def periodic_function(time_s, dominant_signal_parameters=None, noise_signal_para
     if dominant_signal_parameters is None:
         dominant_signal_parameters = {
             "amplitude": 50.0,
-            "frequency_hz": 1.25,
+            "frequency_hz": 5,
             "phase_rad": 0.5,
         }
     if noise_signal_parameters is None:
         noise_signal_parameters = {
-            "amplitude": 1,
-            "frequency_hz": 20.0,
+            "amplitude": 30,
+            "frequency_hz": 15,
             "phase_rad": 0.0,
         }
     if normal_noise_parameters is None:
