@@ -6,7 +6,7 @@ import math
 
 class BPMReader:
     def __init__(self, port, baudrate=9600, sampling_delay_ms = 4, max_data_length = 1500, max_bpm_tab_length = 6,
-                 bpm_calculation_delay_s = 0.5, data_proportion_for_bmp_calculation = 0.5):
+                 bpm_calculation_delay_s = 0.25, data_proportion_for_bmp_calculation = 0.5):
         try:
             self.serial_device = serial.Serial(port, baudrate, timeout=1)
             self.serial_device.flushInput()
@@ -27,7 +27,8 @@ class BPMReader:
         self.last_bpm_calculation_s = 0
         self.bpm_data = []
         self.bpm_fft_tuples_tab = []
-        self.bpm_fft_tuples_max_length = math.ceil((self.max_data_length / (1000 / self.sampling_delay_ms)) / self.bpm_calculation_delay_s)
+        self.bpm_fft_tuples_max_length = math.floor((self.max_data_length / (1000 / self.sampling_delay_ms)) / self.bpm_calculation_delay_s) + 1
+        self.bpm_fft_calculation_time_s = []
         self.is_reading = False
 
     def send_arduino_command(self, command) -> None:
@@ -72,6 +73,7 @@ class BPMReader:
             peak_frequency_hz = fft_frequencies_hz[np.argmax(fft_magnitudes)]
             fft_tuples = list(zip(fft_magnitudes, fft_frequencies_hz))
             self.bpm_fft_tuples_tab.append(fft_tuples)
+            self.bpm_fft_calculation_time_s.append(time.time() - self.first_reading_time)
             self.bpm_data.append(peak_frequency_hz * 60)
             # mean_ecg = statistics.fmean(self.ecg_data)
             # std_ecg = statistics.stdev(self.ecg_data)
@@ -84,6 +86,7 @@ class BPMReader:
             self.bpm_data.pop(0)
         if len(self.bpm_fft_tuples_tab) > self.bpm_fft_tuples_max_length:
             self.bpm_fft_tuples_tab.pop(0)
+            self.bpm_fft_calculation_time_s.pop(0)
         return statistics.fmean(self.bpm_data)
 
     def set_signal_function(self, signal_function) -> None:

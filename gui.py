@@ -51,7 +51,7 @@ class ECGInterface:
             cmap='viridis',
             origin='lower',
             aspect='auto',
-            interpolation='bicubic',
+            interpolation='lanczos',
         )
         self.fig.colorbar(self.spectrogram, ax=self.axes[1])
         self.axes[1].set_title("Spektrogram")
@@ -100,7 +100,7 @@ class ECGInterface:
                 self.spectrogram.set_clim(vmin=self.bpm_fft_amplitudes.min(),
                                           vmax=self.bpm_fft_amplitudes.max())
                 frequencies = [fft_tuple[1] for fft_tuple in self.bpm_reader.bpm_fft_tuples_tab[0]]
-                extent = [self.bpm_reader.time_s[0], self.bpm_reader.time_s[-1] + 0.1, frequencies[0], frequencies[-1]]
+                extent = [self.bpm_reader.bpm_fft_calculation_time_s[0], self.bpm_reader.bpm_fft_calculation_time_s[-1] + 0.1, frequencies[0], frequencies[-1]]
                 self.spectrogram.set_extent(extent)
                 self.axes[1].set_xlim(extent[0], extent[1])
                 self.axes[1].set_ylim(extent[2], extent[3])
