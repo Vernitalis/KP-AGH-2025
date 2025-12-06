@@ -25,7 +25,8 @@ class BPMReader:
         self.bpm_calculation_delay_s = bpm_calculation_delay_s
         self.data_proportion_for_bmp_calculation = data_proportion_for_bmp_calculation
         self.last_bpm_calculation_s = 0
-        self.bpm_data = []
+        self.bpm_data_fft = []
+        self.bpm_data_peaks = []
         self.bpm_fft_tuples_tab = []
         self.bpm_fft_tuples_max_length = math.floor((self.max_data_length / (1000 / self.sampling_delay_ms)) / self.bpm_calculation_delay_s) + 1
         self.bpm_fft_calculation_time_s = []
@@ -65,7 +66,7 @@ class BPMReader:
 
     def calculate_bpm(self): # -> None|float:
         if len(self.ecg_data) / self.max_data_length < self.data_proportion_for_bmp_calculation:
-            return None
+            return None, None
         if self.time_s[-1] - self.last_bpm_calculation_s > self.bpm_calculation_delay_s:
             ecg_data = np.array(self.ecg_data[-int(self.max_data_length * self.data_proportion_for_bmp_calculation):])
             fft_magnitudes = np.abs(np.fft.rfft(ecg_data))[1:]
@@ -74,20 +75,21 @@ class BPMReader:
             fft_tuples = list(zip(fft_magnitudes, fft_frequencies_hz))
             self.bpm_fft_tuples_tab.append(fft_tuples)
             self.bpm_fft_calculation_time_s.append(time.time() - self.first_reading_time)
-            self.bpm_data.append(peak_frequency_hz * 60)
-            # mean_ecg = statistics.fmean(self.ecg_data)
-            # std_ecg = statistics.stdev(self.ecg_data)
-            # std_3_ecg = 3 * std_ecg
-            # filtered = list(filter(lambda data: data - mean_ecg > std_3_ecg, self.ecg_data))
-            # self.bpm_data.append(len(filtered) / (self.time_s[-1] - self.time_s[0]) * 60)
+            self.bpm_data_fft.append(peak_frequency_hz * 60)
+            mean_ecg = statistics.fmean(self.ecg_data)
+            std_ecg = statistics.stdev(self.ecg_data)
+            std_3_ecg = 3 * std_ecg
+            filtered = list(filter(lambda data: data - mean_ecg > std_3_ecg, self.ecg_data))
+            self.bpm_data_peaks.append(len(filtered) / (self.time_s[-1] - self.time_s[0]) * 60)
             self.last_bpm_calculation_s = self.time_s[-1]
 
-        if len(self.bpm_data) > self.max_bpm_tab_length:
-            self.bpm_data.pop(0)
+        if len(self.bpm_data_fft) > self.max_bpm_tab_length:
+            self.bpm_data_fft.pop(0)
+            self.bpm_data_peaks.pop(0)
         if len(self.bpm_fft_tuples_tab) > self.bpm_fft_tuples_max_length:
             self.bpm_fft_tuples_tab.pop(0)
             self.bpm_fft_calculation_time_s.pop(0)
-        return statistics.fmean(self.bpm_data)
+        return statistics.fmean(self.bpm_data_fft), statistics.fmean(self.bpm_data_peaks)
 
     def set_signal_function(self, signal_function) -> None:
         if self.serial_device is not None:

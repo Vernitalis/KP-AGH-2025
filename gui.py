@@ -90,10 +90,12 @@ class ECGInterface:
                 margin = (ymax - ymin) * 0.1 if ymax != ymin else 1.0
                 self.axes[0].set_ylim(ymin - margin, ymax + margin)
 
-            bpm = self.bpm_reader.calculate_bpm()
-            if bpm is not None:
-                self.bpm_label.configure(text=f"BPM: {int(bpm)}")
-
+            bpm_fft, bpm_peaks = self.bpm_reader.calculate_bpm()
+            if bpm_fft is not None:
+                self.bpm_label.configure(text=f"BPM (FFT): {int(bpm_fft)}")
+            # if bpm_peaks is not None:
+            #     self.bpm_label.configure(text=f"BPM: {int(bpm_peaks)}")
+            if len(self.bpm_reader.bpm_fft_tuples_tab) != 0:
                 for i, bpm_fft_tuples in enumerate(self.bpm_reader.bpm_fft_tuples_tab):
                     self.bpm_fft_amplitudes[:, i] = [fft_tuple[0] for fft_tuple in bpm_fft_tuples]
                 self.spectrogram.set_data(self.bpm_fft_amplitudes)
