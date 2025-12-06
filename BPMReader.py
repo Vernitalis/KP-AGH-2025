@@ -79,7 +79,7 @@ class BPMReader:
             mean_ecg = statistics.fmean(self.ecg_data)
             std_ecg = statistics.stdev(self.ecg_data)
             std_3_ecg = 3 * std_ecg
-            filtered = list(filter(lambda data: data - mean_ecg > std_3_ecg, self.ecg_data))
+            filtered = list(filter(lambda data: abs(data - mean_ecg) > std_3_ecg, self.ecg_data))
             self.bpm_data_peaks.append(len(filtered) / (self.time_s[-1] - self.time_s[0]) * 60)
             self.last_bpm_calculation_s = self.time_s[-1]
 
