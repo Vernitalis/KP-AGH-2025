@@ -6,7 +6,7 @@ import math
 
 class BPMReader:
     def __init__(self, port, baudrate=9600, sampling_delay_ms = 4, max_data_length = 1500, max_bpm_tab_length = 6,
-                 bpm_calculation_delay_s = 0.25, data_proportion_for_bmp_calculation = 0.5):
+                 bpm_calculation_delay_s = 0.25, data_proportion_for_bmp_calculation = 0.2):
         try:
             self.serial_device = serial.Serial(port, baudrate, timeout=1)
             self.serial_device.flushInput()
@@ -30,7 +30,6 @@ class BPMReader:
         self.bpm_fft_tuples_tab = []
         self.bpm_fft_tuples_max_length = math.floor((self.max_data_length / (1000 / self.sampling_delay_ms)) / self.bpm_calculation_delay_s) + 1
         self.bpm_fft_calculation_time_s = []
-        self.is_reading = False
 
     def send_arduino_command(self, command) -> None:
         if self.serial_device is not None:
@@ -41,18 +40,23 @@ class BPMReader:
                 print(f"Error sending command: {e}")
 
     def read_data_sample(self) -> None:
-        if not self.is_reading:
-            return
         current_time = time.time()
         if self.first_reading_time is None:
             self.first_reading_time = current_time
 
         if self.serial_device is not None:
-            ecg_sample_str = self.serial_device.readline().decode('utf-8').strip()
-            if ecg_sample_str != "":
+            if hasattr(self.serial_device, 'read_message'):
+                ecg_sample_str = self.serial_device.read_message()
+                if ecg_sample_str is None or ecg_sample_str == "":
+                    return
                 ecg_sample = float(ecg_sample_str)
+                time.sleep(self.sampling_delay_ms / 1000.)
             else:
-                return
+                ecg_sample_str = self.serial_device.readline().decode('utf-8').strip()
+                if ecg_sample_str != "":
+                    ecg_sample = float(ecg_sample_str)
+                else:
+                    return
         elif self.signal_function is not None:
             ecg_sample = self.signal_function(current_time - self.first_reading_time)
             time.sleep(self.sampling_delay_ms / 1000.)
@@ -78,8 +82,8 @@ class BPMReader:
             self.bpm_data_fft.append(peak_frequency_hz * 60)
             mean_ecg = statistics.fmean(self.ecg_data)
             std_ecg = statistics.stdev(self.ecg_data)
-            std_3_ecg = 3 * std_ecg
-            filtered = list(filter(lambda data: abs(data - mean_ecg) > std_3_ecg, self.ecg_data))
+            threshold = 1 * std_ecg
+            filtered = list(filter(lambda data: abs(data - mean_ecg) > threshold, self.ecg_data))
             self.bpm_data_peaks.append(len(filtered) / (self.time_s[-1] - self.time_s[0]) * 60)
             self.last_bpm_calculation_s = self.time_s[-1]
 
