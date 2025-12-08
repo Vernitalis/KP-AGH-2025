@@ -6,7 +6,7 @@ import math
 
 class BPMReader:
     def __init__(self, port, baudrate=9600, sampling_delay_ms = 4, max_data_length = 1500, max_bpm_tab_length = 6,
-                 bpm_calculation_delay_s = 0.25, data_proportion_for_bmp_calculation = 0.2):
+                 bpm_calculation_delay_s = 0.25, data_proportion_for_bmp_calculation = 0.5):
         try:
             self.serial_device = serial.Serial(port, baudrate, timeout=1)
             self.serial_device.flushInput()
@@ -15,7 +15,6 @@ class BPMReader:
             print(f"Error opening serial port: {e}")
             print("Use set_signal_function to provide simulated signal instead")
             self.serial_device = None
-        self.signal_function = None
         self.sampling_delay_ms = sampling_delay_ms
         self.max_data_length = max_data_length
         self.first_reading_time = None
@@ -41,9 +40,6 @@ class BPMReader:
 
     def read_data_sample(self) -> None:
         current_time = time.time()
-        if self.first_reading_time is None:
-            self.first_reading_time = current_time
-
         if self.serial_device is not None:
             if hasattr(self.serial_device, 'read_message'):
                 ecg_sample_str = self.serial_device.read_message()
@@ -57,11 +53,10 @@ class BPMReader:
                     ecg_sample = float(ecg_sample_str)
                 else:
                     return
-        elif self.signal_function is not None:
-            ecg_sample = self.signal_function(current_time - self.first_reading_time)
-            time.sleep(self.sampling_delay_ms / 1000.)
         else:
             raise AttributeError("Can't read data sample if neither serial device nor signal function attribute is provided")
+        if self.first_reading_time is None:
+            self.first_reading_time = current_time
         self.time_s.append(current_time - self.first_reading_time)
         self.ecg_data.append(ecg_sample)
         if len(self.time_s) > self.max_data_length:
@@ -80,11 +75,20 @@ class BPMReader:
             self.bpm_fft_tuples_tab.append(fft_tuples)
             self.bpm_fft_calculation_time_s.append(time.time() - self.first_reading_time)
             self.bpm_data_fft.append(peak_frequency_hz * 60)
-            mean_ecg = statistics.fmean(self.ecg_data)
-            std_ecg = statistics.stdev(self.ecg_data)
-            threshold = 1 * std_ecg
-            filtered = list(filter(lambda data: abs(data - mean_ecg) > threshold, self.ecg_data))
-            self.bpm_data_peaks.append(len(filtered) / (self.time_s[-1] - self.time_s[0]) * 60)
+            mean_ecg = statistics.fmean(ecg_data)
+            std_ecg = statistics.stdev(ecg_data)
+            threshold = 3 * std_ecg
+            filtered_indices = [
+                i + len(self.ecg_data) - len(ecg_data) for i in range(len(ecg_data))
+                if abs(self.ecg_data[i] - mean_ecg) > threshold
+            ]
+            final_indices = [filtered_indices[0]]
+            last_kept_index = final_indices[0]
+            for index in filtered_indices[1:]:
+                if self.time_s[index] - self.time_s[last_kept_index] > 0.1:
+                    final_indices.append(index)
+                    last_kept_index = index
+            self.bpm_data_peaks.append(len(final_indices) / (self.time_s[-1] - self.time_s[-len(ecg_data)]) * 60)
             self.last_bpm_calculation_s = self.time_s[-1]
 
         if len(self.bpm_data_fft) > self.max_bpm_tab_length:
@@ -94,11 +98,6 @@ class BPMReader:
             self.bpm_fft_tuples_tab.pop(0)
             self.bpm_fft_calculation_time_s.pop(0)
         return statistics.fmean(self.bpm_data_fft), statistics.fmean(self.bpm_data_peaks)
-
-    def set_signal_function(self, signal_function) -> None:
-        if self.serial_device is not None:
-            raise AttributeError("Can't set signal function if serial device is already set")
-        self.signal_function = signal_function
 
     def close_serial_device(self) -> None:
         if self.serial_device is not None:
